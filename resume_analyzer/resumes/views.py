@@ -3,9 +3,13 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import Resume
 import PyPDF2
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from resumes.models import Resume
 
 
-# ✅ Extract text from PDF
+
+
 def extract_text_from_pdf(file):
     try:
         pdf = PyPDF2.PdfReader(file)
@@ -23,7 +27,7 @@ def extract_text_from_pdf(file):
         return ""
 
 
-# ✅ Extract skills
+
 def extract_skills(text):
     skills_list = [
         'python', 'java', 'django', 'sql', 'html', 'css',
@@ -38,10 +42,10 @@ def extract_skills(text):
         if skill in text:
             found_skills.append(skill)
 
-    return list(set(found_skills))  # remove duplicates
+    return list(set(found_skills))  
 
 
-# ✅ Upload Resume API (MULTIPLE FILE SUPPORT)
+
 class UploadResumeView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -55,29 +59,36 @@ class UploadResumeView(APIView):
 
         for file in files:
 
-            # ✅ Allow only PDFs
+            
             if not file.name.endswith('.pdf'):
                 results.append({
                     "file": file.name,
                     "error": "Only PDF files allowed"
                 })
                 continue
+            if Resume.objects.filter(user=request.user, file=file.name).exists():
+              results.append({
+            "file": file.name,
+            "error": "File already uploaded"
+            })
+              continue
 
-            # 🔥 Extract text
+           
             text = extract_text_from_pdf(file)
 
-            # 🔥 Reset file pointer
+           
             file.seek(0)
 
-            # 🔥 Extract skills safely
+           
             skills = extract_skills(text) if text else []
 
-            # 🔥 Save to DB
+            
             resume = Resume.objects.filter(user=request.user).first()
 
             if resume:
               resume.file = file
               resume.extracted_text = text
+              resume.skills = ",".join(skills)
               resume.save()
             else:
                resume = Resume.objects.create(
@@ -85,7 +96,7 @@ class UploadResumeView(APIView):
                file=file,
                extracted_text=text
         )
-
+  
             results.append({
                 "resume_id": resume.id,
                 "skills": skills,
@@ -95,4 +106,20 @@ class UploadResumeView(APIView):
         return Response({
             "message": "All resumes uploaded successfully",
             "data": results
+        })
+   
+
+class UpdateResumeDetails(APIView):
+    def post(self, request, resume_id):
+
+        resume = Resume.objects.get(id=resume_id)
+
+        resume.projects = request.data.get("projects", "")
+        resume.internship = request.data.get("internship", "")
+        resume.certifications = request.data.get("certifications", "")
+        resume.github = request.data.get("github", "")
+        resume.save()
+
+        return Response({
+            "message": "Details updated successfully"
         })
