@@ -14,6 +14,20 @@ from pathlib import Path
 import os
 from datetime import timedelta
 
+import os
+
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+
+
+STATICFILES_DIRS = [
+    BASE_DIR / "static"
+
+]
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -44,6 +58,8 @@ INSTALLED_APPS = [
     'accounts',
     'resumes',
     'jobs',
+    'corsheaders',
+    
 
 ]
 
@@ -57,6 +73,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
 ]
 
 ROOT_URLCONF = 'resume_analyzer.urls'
@@ -64,7 +81,7 @@ ROOT_URLCONF = 'resume_analyzer.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'], 
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -141,3 +158,5 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
 }
+
+CORS_ALLOW_ALL_ORIGINS = True

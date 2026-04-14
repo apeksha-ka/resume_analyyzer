@@ -1,0 +1,29 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Resume Analyzer</title>
+</head>
+<body>
+
+<h1>Resume Analyzer</h1>
+
+<h3>Upload Resume</h3>
+<input type="file" id="file">
+<button onclick="uploadResume()">Upload</button>
+
+<br><br>
+
+<h3>Analyze Candidates</h3>
+<button onclick="getResults()">Check Results</button>
+
+<br><br>
+
+<pre id="output"></pre>
+
+<script src="script.js"></script>
+
+</body>
+</html>
+
+<script src="{% static 'script.js' %}"></script>

@@ -3,6 +3,10 @@ from rest_framework.response import Response
 from resumes.models import Resume
 from .models import Job
 import re
+from django.shortcuts import render
+
+def home(request):
+    return render(request, 'index.html')
 
 SYNONYMS = {
     "ml": ["machine learning"],
@@ -210,6 +214,43 @@ class AllProfilesView(APIView):
                 "decision": decision,
                 "review_note": review_note if level == "Average" else "Direct decision",
                 "message":message
+            })
+
+        return Response(results)
+    
+class AllResultsView(APIView):
+    def get(self, request, job_id):
+        resumes = Resume.objects.all()
+        job = Job.objects.get(id=job_id)
+
+        job_skills = [s.strip().lower() for s in job.required_skills.split(",")]
+
+        results = []
+
+        for resume in resumes:
+            resume_skills = [s.strip().lower() for s in resume.skills.split(",")] if resume.skills else []
+
+            matched = list(set(resume_skills) & set(job_skills))
+
+            if job_skills:
+                score = round((len(matched) / len(job_skills)) * 100)
+            else:
+                score = 0
+
+            # decision
+            if score < 40:
+                decision = "Rejected ❌"
+            elif score == 40:
+               decision = "Rejected (After Review)"
+            elif score > 70:
+                decision = "Shortlisted (After Review)"
+            else:
+                decision = "Shortlisted ✅"
+
+            results.append({
+                "resume_id": resume.id,
+                "score": score,
+                "decision": decision
             })
 
         return Response(results)
