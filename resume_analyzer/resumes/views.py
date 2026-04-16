@@ -6,6 +6,8 @@ import PyPDF2
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from resumes.models import Resume
+from django.shortcuts import render, redirect
+
 
 
 
@@ -42,7 +44,25 @@ def extract_skills(text):
         if skill in text:
             found_skills.append(skill)
 
-    return list(set(found_skills))  
+    return list(set(found_skills)) 
+def upload_resume(request):
+    if request.user.role == 'jobseeker':
+        # allow resume upload
+        return render(request, 'upload.html')
+    else:
+        return redirect('home')  
+def resume_score(request):
+    if request.user.role == 'jobseeker':
+        # show score
+        return render(request, 'score.html')
+    else:
+        return redirect('home')
+def recruiter_dashboard(request):
+    if request.user.role == 'recruiter':
+        # show all profiles
+        return render(request, 'recruiter_dashboard.html')
+    else:
+        return redirect('home')
 
 
 
@@ -50,6 +70,8 @@ class UploadResumeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        if request.user.role != 'jobseeker':
+            return Response({"error": "Only jobseekers can upload resumes"}, status=403)
         files = request.FILES.getlist('file')
 
         if not files:
@@ -91,11 +113,14 @@ class UploadResumeView(APIView):
               resume.skills = ",".join(skills)
               resume.save()
             else:
+               
                resume = Resume.objects.create(
                user=request.user,
                file=file,
-               extracted_text=text
-        )
+               extracted_text=text,
+               skills=",".join(skills)   # 🔥 FIX HERE
+    )
+        
   
             results.append({
                 "resume_id": resume.id,
@@ -111,8 +136,11 @@ class UploadResumeView(APIView):
 
 class UpdateResumeDetails(APIView):
     def post(self, request, resume_id):
+        if request.user.role != 'jobseeker':
+            return Response({"error": "Not allowed"}, status=403)
+        resume = Resume.objects.get(id=resume_id, user=request.user)
 
-        resume = Resume.objects.get(id=resume_id)
+    
 
         resume.projects = request.data.get("projects", "")
         resume.internship = request.data.get("internship", "")

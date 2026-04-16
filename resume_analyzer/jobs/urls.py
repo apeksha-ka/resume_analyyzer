@@ -9,8 +9,14 @@ urlpatterns = [
     path('match/<int:resume_id>/<int:job_id>/', MatchJobView.as_view()),
     path('review/<int:resume_id>/', ReviewCheckView.as_view()),
     path('advanced-review/<int:resume_id>/', AdvancedReviewView.as_view()),
-    path('final-decision/<int:resume_id>/<int:job_id>/', FinalDecisionView.as_view()),
+    path('jobs/final-decision/<int:resume_id>/', FinalDecisionView.as_view()),
     path('all-profiles/', AllProfilesView.as_view()),
     path('all-results/<int:job_id>/', AllResultsView.as_view()),
     path('', home),
+    path('jobs/profile/', AllProfilesView.as_view()),
+    
+    
+    path('jobs/match/<int:resume_id>/', MatchJobView.as_view()),
+    path('api/jobs/match/<int:resume_id>/<int:job_id>/', MatchJobView.as_view()),
+    path('final-decision/<int:resume_id>/', FinalDecisionView.as_view()),
 ]

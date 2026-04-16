@@ -4,7 +4,11 @@ from resumes.models import Resume
 from .models import Job
 import re
 from django.shortcuts import render
-
+from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import get_object_or_404
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 def home(request):
     return render(request, 'index.html')
 
@@ -14,52 +18,106 @@ SYNONYMS = {
     "js": ["javascript"]
 }
 
+def calculate_decision(resume, job):
+
+    resume_skills = [s.strip().lower() for s in resume.skills.split(",")] if resume.skills else []
+    job_skills = [s.strip().lower() for s in job.required_skills.split(",")]
+
+    matched = list(set(resume_skills) & set(job_skills))
+
+    score = round((len(matched) / len(resume_skills)) * 100) if resume_skills else 0
+
+    if score < 40:
+        level = "Low"
+    elif score <= 70:
+        level = "Average"
+    else:
+        level = "High"
+
+    has_project = bool(resume.projects and resume.projects.strip())
+    has_internship = bool(resume.internship and resume.internship.strip())
+
+    if score < 40:
+        decision = "Rejected ❌"
+
+    elif score > 75:
+        decision = "Shortlisted ✅"
+
+    else:
+        if has_project and has_internship:
+            decision = "Shortlisted (After Review) ⚠️"
+        else:
+            decision = "Rejected (After Review) ❌"
+
+    return score, decision   # ✅ VERY IMPORTANT
 
 class MatchJobView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request, resume_id, job_id):
 
-        print("API HIT")
-
-        resume = Resume.objects.get(id=resume_id)
-        job = Job.objects.get(id=job_id)
+        resume = get_object_or_404(Resume, id=resume_id)
+        job = get_object_or_404(Job, id=job_id)
 
         resume_skills = [s.strip().lower() for s in resume.skills.split(",")] if resume.skills else []
         job_skills = [s.strip().lower() for s in job.required_skills.split(",")]
 
         matched = list(set(resume_skills) & set(job_skills))
-        # score
-        if job_skills:
-            score = round((len(matched) / len(job_skills)) * 100, 2)
-        else:
-           score = 0
-        if score < 40:
-          level = "Low"
-          decision = "Rejected ❌"
-        elif score <= 70:
-           level = "Average"
-           decision = "Review Required ⚠️"
-        else:
-           level = "High"
-           decision = "Shortlisted ✅"
 
+        score = round((len(matched) / len(resume_skills)) * 100) if resume_skills else 0
+
+        if score < 40:
+            level = "Low"
+        elif score <= 70:
+            level = "Average"
+        else:
+            level = "High"
+
+        # 🎯 Decision
+        if score < 40:
+            decision = "Rejected ❌"
+        elif level == "High":
+            decision = "Shortlisted ✅"
+        else:
+            decision = "Shortlisted (After Review) ⚠️"
+
+        # 👤 Jobseeker → only status
+        if request.user.role == 'jobseeker':
+            return Response({
+                "status": "Profile under review" if level == "Average" else decision
+            })
+
+        # 🏢 Recruiter → full info
         return Response({
-            "matched_skills": matched,
+            "resume_id": resume.id,
+            "user": resume.user.username,
             "score": score,
-            "level":level,
-            "decision" : decision,
+            "level": level,
+            "status": "Review Required" if level == "Average" else "Auto Decision"
         })
+        
 class ReviewCheckView(APIView):
+    
+    permission_classes = [IsAuthenticated]
+
     def get(self, request, resume_id):
 
+        # 👤 Jobseeker → only own + hide review
+        if request.user.role == 'jobseeker':
+            resume = Resume.objects.get(id=resume_id, user=request.user)
+
+            return Response({
+                "projects": resume.projects,
+                "internship": resume.internship,
+                "message": "Profile under review"
+            })
+
+        # 🏢 Recruiter → full access
         resume = Resume.objects.get(id=resume_id)
 
-        
         has_project = bool(resume.projects.strip()) if resume.projects else False
-
-       
         has_internship = bool(resume.internship.strip()) if resume.internship else False
 
-        
         if has_project and has_internship:
             review = "Strong Candidate ✅"
         elif has_project or has_internship:
@@ -74,23 +132,29 @@ class ReviewCheckView(APIView):
         })
     
 class AdvancedReviewView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request, resume_id):
 
+        # 👤 Jobseeker → BLOCK access
+        if request.user.role != 'recruiter':
+            return Response({
+                "error": "Only recruiters can view advanced analysis"
+            }, status=403)
+
+        # 🏢 Recruiter → full access
         resume = Resume.objects.get(id=resume_id)
 
-        
         if resume.projects and "django" in resume.projects.lower():
             skill_depth = "Strong ✅"
         else:
             skill_depth = "Basic ⚠️"
 
-       
         if len(resume.extracted_text) > 500:
             quality = "Good ✅"
         else:
             quality = "Poor ❌"
 
-        
         extras = []
         if resume.certifications:
             extras.append("Certifications ✅")
@@ -103,59 +167,59 @@ class AdvancedReviewView(APIView):
             "extras": extras if extras else "No extras ❌"
         })
 class FinalDecisionView(APIView):
-    def get(self, request, resume_id, job_id):
+   def get(self, request, resume_id):
 
-        resume = Resume.objects.get(id=resume_id)
-        job = Job.objects.get(id=job_id)
+    resume = Resume.objects.get(id=resume_id)
+    job = Job.objects.first()
 
-        # skills
-        resume_skills = [s.strip().lower() for s in resume.skills.split(",")] if resume.skills else []
-        job_skills = [s.strip().lower() for s in job.required_skills.split(",")]
+    resume_skills = [s.strip().lower() for s in resume.skills.split(",")] if resume.skills else []
+    job_skills = [s.strip().lower() for s in job.required_skills.split(",")]
 
-        matched = list(set(resume_skills) & set(job_skills))
+    matched = list(set(resume_skills) & set(job_skills))
+    score = round((len(matched) / len(job_skills)) * 100) if job_skills else 0
+    if score < 40:
+        level = "Low"
+    elif score <= 70:
+        level = "Average"
+    else:
+        level = "High"
 
-        # score
-        score = round((len(matched) / len(job_skills)) * 100) if job_skills else 0
+    # 🎯 SAME DECISION AS PROFILE VIEW
+    if score < 40:
+     decision = "Rejected ❌"
 
-        # level
-        if score < 40:
-            level = "Low"
-        elif score <= 70:
-            level = "Average"
-        else:
-            level = "High"
+    elif score >= 70:
+         decision = "Shortlisted ✅"   # 🔥 direct shortlist
 
-        # review (projects + internship)
-        # weak check
-        weak_project = "basic" in resume.projects.lower() if resume.projects else True
-        weak_internship = "workshop" in resume.internship.lower() if resume.internship else True
+    else:
+       has_project = bool(resume.projects and resume.projects.strip())
+       has_internship = bool(resume.internship and resume.internship.strip())
 
-# final decision
-        if score < 40:
-          decision = "Rejected "
+       if has_project and has_internship and score >= 60:
+         decision = "Shortlisted (After Review) ⚠️"
+       else:
+         decision = "Rejected (After Review) ❌"
 
-        elif level == "High" and not weak_project:
-             decision = "Shortlisted ✅"
-
-        elif level == "Average":
-             if weak_project and weak_internship:
-                decision = "Rejected "   
-             else:
-                decision = "Shortlisted (After Review) ⚠️"
-
-        else:
-            decision = "Rejected "
-
-        return Response({
-            "score": score,
-            "level": level,
-            "decision": decision
-        })
+    return Response({
+        "resume_id": resume.id,
+        "decision": decision
+    })
+        
 class AllProfilesView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
 
-        resumes = Resume.objects.all()
-        job = Job.objects.first()   
+        # 👤 Jobseeker → only own resume
+        if request.user.role == 'jobseeker':
+            resumes = Resume.objects.filter(user=request.user)
+        else:
+            # 🏢 Recruiter → all resumes
+            resumes = Resume.objects.all()
+
+        job = Job.objects.first()
+        if not job:
+            return Response({"error": "No job found"}, status=404)
 
         results = []
 
@@ -165,10 +229,8 @@ class AllProfilesView(APIView):
             job_skills = [s.strip().lower() for s in job.required_skills.split(",")]
 
             matched = list(set(resume_skills) & set(job_skills))
+            score = round((len(matched) / len(resume_skills)) * 100) if resume_skills else 0
 
-            score = round((len(matched) / len(job_skills)) * 100) if job_skills else 0
-
-            
             if score < 40:
                 level = "Low"
             elif score <= 70:
@@ -176,50 +238,53 @@ class AllProfilesView(APIView):
             else:
                 level = "High"
 
-            
-            weak_project = "basic" in resume.projects.lower() if resume.projects else True
-            weak_internship = "workshop" in resume.internship.lower() if resume.internship else True
-
-            
+            # 🎯 Decision
             if score < 40:
-               decision = "Rejected "
-               review_note = "Low score"
-
+                decision = "Rejected ❌"
             elif level == "High":
                 decision = "Shortlisted ✅"
-                review_note = "High score, directly shortlisted"
-
-            elif level == "Average":
-                 if weak_project and weak_internship:
-                   decision = "Rejected "
-                   review_note = "Weak project,internship and no certification and github"
-                 else:
-                    decision = "Shortlisted (After Review) ⚠️"
-                    review_note = "Has some project or internship, needs manual review"
-
             else:
-                decision = "Rejected "
-                review_note = "Not suitable"
+                decision = "Shortlisted (After Review) ⚠️"
 
-            if score > 70:
-              message = "Strong candidate for this role"
-            elif score >= 40:
-              message = "Needs improvement"
+            # =========================
+            # 👤 JOBSEEKER VIEW
+            # =========================
+            if request.user.role == 'jobseeker':
+
+                if level == "Average":
+                    status = "Profile under review"
+                else:
+                    status = decision
+
+                results.append({
+                    "resume_id": resume.id,
+                    "status": status
+                })
+
+            # =========================
+            # 🏢 RECRUITER VIEW
+            # =========================
             else:
-             message = "Not suitable"
-            results.append({
-                "resume_id": resume.id,
-                "score": score,
-                "level": level,
-                "decision": decision,
-                "review_note": review_note if level == "Average" else "Direct decision",
-                "message":message
-            })
+                results.append({
+                    "resume_id": resume.id,
+                    "user": resume.user.username,
+                    "score": score,
+                    "level": level,
+                    "decision": decision,
+                    "status": "Review Required" if level == "Average" else "Auto Decision"
+                })
 
         return Response(results)
     
 class AllResultsView(APIView):
+    
+    permission_classes = [IsAuthenticated]
+
     def get(self, request, job_id):
+
+        if request.user.role != 'recruiter':
+            return Response({"error": "Only recruiters allowed"}, status=403)
+    
         resumes = Resume.objects.all()
         job = Job.objects.get(id=job_id)
 
@@ -250,6 +315,41 @@ class AllResultsView(APIView):
             results.append({
                 "resume_id": resume.id,
                 "score": score,
+                "decision": decision
+            })
+
+        return Response(results)
+class MyProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+        resumes = Resume.objects.filter(user=request.user)
+        job = Job.objects.first()
+
+        results = []
+
+        for resume in resumes:
+
+            resume_skills = [s.strip().lower() for s in resume.skills.split(",")] if resume.skills else []
+            job_skills = [s.strip().lower() for s in job.required_skills.split(",")]
+
+            matched = list(set(resume_skills) & set(job_skills))
+            score = round((len(matched) / len(job_skills)) * 100) if job_skills else 0
+
+            if score < 40:
+                decision = "Rejected ❌"
+            elif score > 70:
+                decision = "Shortlisted ✅"
+            else:
+                decision = "Shortlisted (After Review) ⚠️"
+
+            results.append({
+                   "resume_id": resume.id,
+                    "user": resume.user.username,
+                   "skills": resume.skills,
+                "projects": resume.projects,
+                "internship": resume.internship,
                 "decision": decision
             })
 
