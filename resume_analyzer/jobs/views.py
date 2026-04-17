@@ -20,8 +20,8 @@ SYNONYMS = {
 
 def calculate_decision(resume, job):
 
-    resume_skills = [s.strip().lower() for s in resume.skills.split(",")] if resume.skills else []
-    job_skills = [s.strip().lower() for s in job.required_skills.split(",")]
+    resume_skills = resume.skills.lower().replace(" ", "").split(",")
+    job_skills = job.required_skills.lower().replace(" ", "").split(",")
 
     matched = list(set(resume_skills) & set(job_skills))
 
@@ -38,18 +38,18 @@ def calculate_decision(resume, job):
     has_internship = bool(resume.internship and resume.internship.strip())
 
     if score < 40:
-        decision = "Rejected ❌"
+        decision = "Rejected "
 
     elif score > 75:
-        decision = "Shortlisted ✅"
+        decision = "Shortlisted "
 
     else:
         if has_project and has_internship:
-            decision = "Shortlisted (After Review) ⚠️"
+            decision = "Shortlisted (After Review) "
         else:
-            decision = "Rejected (After Review) ❌"
+            decision = "Rejected (After Review) "
 
-    return score, decision   # ✅ VERY IMPORTANT
+    return score, decision   
 
 class MatchJobView(APIView):
     permission_classes = [IsAuthenticated]
@@ -75,11 +75,11 @@ class MatchJobView(APIView):
 
         # 🎯 Decision
         if score < 40:
-            decision = "Rejected ❌"
+            decision = "Rejected "
         elif level == "High":
-            decision = "Shortlisted ✅"
+            decision = "Shortlisted "
         else:
-            decision = "Shortlisted (After Review) ⚠️"
+            decision = "Shortlisted (After Review) "
 
         # 👤 Jobseeker → only status
         if request.user.role == 'jobseeker':
@@ -119,11 +119,11 @@ class ReviewCheckView(APIView):
         has_internship = bool(resume.internship.strip()) if resume.internship else False
 
         if has_project and has_internship:
-            review = "Strong Candidate ✅"
+            review = "Strong Candidate "
         elif has_project or has_internship:
-            review = "Average Candidate ⚠️"
+            review = "Average Candidate "
         else:
-            review = "Weak Candidate ❌"
+            review = "Weak Candidate "
 
         return Response({
             "projects": resume.projects,
@@ -146,25 +146,25 @@ class AdvancedReviewView(APIView):
         resume = Resume.objects.get(id=resume_id)
 
         if resume.projects and "django" in resume.projects.lower():
-            skill_depth = "Strong ✅"
+            skill_depth = "Strong "
         else:
-            skill_depth = "Basic ⚠️"
+            skill_depth = "Basic "
 
         if len(resume.extracted_text) > 500:
-            quality = "Good ✅"
+            quality = "Good "
         else:
-            quality = "Poor ❌"
+            quality = "Poor "
 
         extras = []
         if resume.certifications:
-            extras.append("Certifications ✅")
+            extras.append("Certifications ")
         if resume.github:
-            extras.append("GitHub ✅")
+            extras.append("GitHub ")
 
         return Response({
             "skill_depth": skill_depth,
             "resume_quality": quality,
-            "extras": extras if extras else "No extras ❌"
+            "extras": extras if extras else "No extras "
         })
 class FinalDecisionView(APIView):
    def get(self, request, resume_id):
@@ -172,10 +172,11 @@ class FinalDecisionView(APIView):
     resume = Resume.objects.get(id=resume_id)
     job = Job.objects.first()
 
-    resume_skills = [s.strip().lower() for s in resume.skills.split(",")] if resume.skills else []
-    job_skills = [s.strip().lower() for s in job.required_skills.split(",")]
+    resume_skills = [s.strip().lower() for s in resume.skills.split(",") if s.strip()] if resume.skills else []
+    job_skills = [s.strip().lower() for s in job.required_skills.split(",") if s.strip()]
 
     matched = list(set(resume_skills) & set(job_skills))
+    
     score = round((len(matched) / len(job_skills)) * 100) if job_skills else 0
     if score < 40:
         level = "Low"
@@ -186,19 +187,19 @@ class FinalDecisionView(APIView):
 
     # 🎯 SAME DECISION AS PROFILE VIEW
     if score < 40:
-     decision = "Rejected ❌"
+     decision = "Rejected "
 
     elif score >= 70:
-         decision = "Shortlisted ✅"   # 🔥 direct shortlist
+         decision = "Shortlisted "   # 🔥 direct shortlist
 
     else:
        has_project = bool(resume.projects and resume.projects.strip())
        has_internship = bool(resume.internship and resume.internship.strip())
 
        if has_project and has_internship and score >= 60:
-         decision = "Shortlisted (After Review) ⚠️"
+         decision = "Shortlisted (After Review) "
        else:
-         decision = "Rejected (After Review) ❌"
+         decision = "Rejected (After Review) "
 
     return Response({
         "resume_id": resume.id,
@@ -225,10 +226,10 @@ class AllProfilesView(APIView):
 
         for resume in resumes:
 
-            resume_skills = [s.strip().lower() for s in resume.skills.split(",")] if resume.skills else []
-            job_skills = [s.strip().lower() for s in job.required_skills.split(",")]
-
+            resume_skills = [s.strip().lower() for s in resume.skills.split(",") if s.strip()] if resume.skills else []
+            job_skills = [s.strip().lower() for s in job.required_skills.split(",") if s.strip()]
             matched = list(set(resume_skills) & set(job_skills))
+            
             score = round((len(matched) / len(resume_skills)) * 100) if resume_skills else 0
 
             if score < 40:
@@ -240,11 +241,19 @@ class AllProfilesView(APIView):
 
             # 🎯 Decision
             if score < 40:
-                decision = "Rejected ❌"
-            elif level == "High":
-                decision = "Shortlisted ✅"
+             decision = "Rejected ❌"
+
+            elif score > 70:
+               decision = "Shortlisted ✅"
+
             else:
-                decision = "Shortlisted (After Review) ⚠️"
+               has_project = bool(resume.projects and resume.projects.strip())
+               has_internship = bool(resume.internship and resume.internship.strip())
+
+               if has_project and has_internship:
+                  decision = "Shortlisted (After Review) ⚠️"
+               else:
+                   decision = "Rejected (After Review) ❌"
 
             # =========================
             # 👤 JOBSEEKER VIEW
@@ -256,11 +265,12 @@ class AllProfilesView(APIView):
                 else:
                     status = decision
 
-                results.append({
-                    "resume_id": resume.id,
-                    "status": status
-                })
+                if request.user.role == 'jobseeker':
 
+                 results.append({
+                        "resume_id": resume.id,
+                        "status": decision   # 🔥 direct decision
+                    })
             # =========================
             # 🏢 RECRUITER VIEW
             # =========================
@@ -304,13 +314,13 @@ class AllResultsView(APIView):
 
             # decision
             if score < 40:
-                decision = "Rejected ❌"
+                decision = "Rejected "
             elif score == 40:
                decision = "Rejected (After Review)"
             elif score > 70:
                 decision = "Shortlisted (After Review)"
             else:
-                decision = "Shortlisted ✅"
+                decision = "Shortlisted "
 
             results.append({
                 "resume_id": resume.id,
@@ -338,11 +348,11 @@ class MyProfileView(APIView):
             score = round((len(matched) / len(job_skills)) * 100) if job_skills else 0
 
             if score < 40:
-                decision = "Rejected ❌"
+                decision = "Rejected "
             elif score > 70:
-                decision = "Shortlisted ✅"
+                decision = "Shortlisted "
             else:
-                decision = "Shortlisted (After Review) ⚠️"
+                decision = "Shortlisted (After Review) "
 
             results.append({
                    "resume_id": resume.id,

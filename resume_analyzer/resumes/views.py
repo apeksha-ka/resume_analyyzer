@@ -151,3 +151,4 @@ class UpdateResumeDetails(APIView):
         return Response({
             "message": "Details updated successfully"
         })
+    

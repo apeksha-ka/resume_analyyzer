@@ -3,6 +3,60 @@
 <html>
 <head>
     <title>Resume Analyzer</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial;
+            background: #f5f6fa;
+        
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .container {
+            text-align: center;
+            width: 500px;
+        }
+        
+        .card {
+            background: white;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        
+        button {
+            padding: 8px 15px;
+            border: none;
+            background: #4CAF50;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        /* 🔥 RESULT CARDS */
+        .result-card {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            text-align: left;
+        }
+        
+        .green { color: green; font-weight: bold; }
+        .red { color: red; font-weight: bold; }
+        </style>
+
+    <!-- ✅ ADD CSS HERE -->
+    
 </head>
 <body>
 
@@ -25,5 +79,4 @@
 
 </body>
 </html>
-
 <script src="{% static 'script.js' %}"></script>
